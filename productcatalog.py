@@ -1,22 +1,30 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import requests  # Import requests for API calls
+from openpyxl import load_workbook
 
 # Page configuration for layout
 st.set_page_config(page_title="Product Catalog", layout="wide")
 
-# File path to the product catalog
-file_path = 'products.xlsx'
-
-# Load product data (simplified)
-try:
-    products = pd.read_excel(file_path, engine='openpyxl')
-    if products.empty:
-        st.error("The Excel file is empty.")
+# Function to load data from Excel (Updated)
+@st.cache_data
+def load_data(url):
+    try:
+        data = pd.read_excel(url, engine='openpyxl')
+        if data.empty:
+            st.error("The Excel file is empty.")
+            st.stop()
+        return data
+    except Exception as e:
+        st.error(f"An error occurred while loading the data: {e}")
         st.stop()
-except Exception as e:
-    st.error(f"An error occurred while loading the data: {e}")
-    st.stop()
+
+# Update the URL to the raw link
+file_path = 'products.xlsx'  # Replace this with the path to your Excel file
+
+# Load product data (Updated)
+products = load_data(file_path)
 
 # Ensure necessary columns are present
 required_columns = ['Product Name', 'Category', 'Price', 'Discount', 'Stock', 'Rating', 'Features', 'Image URL', 'Launch Date', 'Product ID']
