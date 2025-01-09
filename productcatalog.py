@@ -8,55 +8,61 @@ st.set_page_config(page_title="Product Catalog", layout="wide")
 
 # Function to load data from Excel
 @st.cache_data
-def load_data(uploaded_file):
+def load_data(file_path):
     try:
-        data = pd.read_excel(uploaded_file, engine='openpyxl')
+        data = pd.read_excel(file_path, engine='openpyxl')
         if data.empty:
-            st.error("The uploaded Excel file is empty.")
+            st.error("The Excel file is empty.")
             st.stop()
         return data
     except Exception as e:
         st.error(f"An error occurred while loading the data: {e}")
         st.stop()
 
-# File uploader
-uploaded_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
-if not uploaded_file:
+# File uploader for Excel file
+file_path = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
+if not file_path:
     st.stop()
 
 # Load product data
-products = load_data(uploaded_file)
+products = load_data(file_path)
 
 # Ensure necessary columns are present
 required_columns = ['Product Name', 'Category', 'Price', 'Discount', 'Stock', 'Rating', 'Features', 'Image URL', 'Launch Date', 'Product ID']
 for col in required_columns:
     if col not in products.columns:
-        st.error(f"Missing required column: {col}")
+        st.error(f"Missing column: {col}")
         st.stop()
 
-# Data Cleaning
+# Clean and convert 'Price' column to numeric
 try:
-    # Convert 'Price' column to numeric
-    products['Price'] = pd.to_numeric(products['Price'].replace({'\$': '', ',': ''}, regex=True), errors='coerce')
-
-    # Convert 'Discount' column to numeric (assumes it's in decimal format)
-    products['Discount'] = pd.to_numeric(products['Discount'], errors='coerce') * 100
-
-    # Convert 'Launch Date' to datetime
-    products['Launch Date'] = pd.to_datetime(products['Launch Date'], errors='coerce')
-
-    # Fill missing or invalid dates with a fallback
-    products['Launch Date'].fillna(pd.Timestamp('2000-01-01'), inplace=True)
-
-    # Handle missing or invalid values in 'Rating' and 'Discount'
-    products['Rating'].fillna(0, inplace=True)
-    products['Discount'].fillna(0, inplace=True)
+    products['Price'] = pd.to_numeric(products['Price'], errors='coerce').fillna(0)
 except Exception as e:
-    st.error(f"An error occurred while processing the data: {e}")
+    st.error(f"An error occurred while processing the 'Price' column: {e}")
     st.stop()
 
+# Clean and convert 'Discount' column to numeric
+try:
+    products['Discount'] = pd.to_numeric(products['Discount'], errors='coerce').fillna(0)
+except Exception as e:
+    st.error(f"An error occurred while processing the 'Discount' column: {e}")
+    st.stop()
+
+# Convert 'Launch Date' to datetime
+products['Launch Date'] = pd.to_datetime(products['Launch Date'], errors='coerce')
+
+# Clean the 'Stock' column
+try:
+    products['Stock'] = pd.to_numeric(products['Stock'], errors='coerce').fillna(0).astype(int)
+except Exception as e:
+    st.error(f"An error occurred while processing the 'Stock' column: {e}")
+    st.stop()
+
+# Clean the 'Rating' column
+products['Rating'] = pd.to_numeric(products['Rating'], errors='coerce').fillna(0)
+
 # App title and description
-st.title("🛍️ Product Catalog")
+st.title("🛟️ Product Catalog")
 st.subheader("Find the best products tailored to your needs.")
 st.write("---")
 
@@ -75,19 +81,16 @@ price_range = st.sidebar.slider(
 )
 
 # Discount Filter
-discount_range = st.sidebar.slider(
-    'Discount (%)',
-    min_value=int(products['Discount'].min()),
-    max_value=int(products['Discount'].max()),
-    value=(int(products['Discount'].min()), int(products['Discount'].max()))
-)
+min_discount = int(products['Discount'].min())
+max_discount = int(products['Discount'].max())
+discount_range = st.sidebar.slider('Discount (%)', min_value=min_discount, max_value=max_discount, value=(min_discount, max_discount))
 
 # Rating Filter
-rating = st.sidebar.selectbox('Minimum Rating', options=[0, 1, 2, 3, 4, 5], index=5)
+rating = st.sidebar.selectbox('Rating', options=[1, 2, 3, 4, 5], index=4)
 
 # Launch Date Filter
-min_date = products['Launch Date'].min().date()
-max_date = products['Launch Date'].max().date()
+min_date = products['Launch Date'].min().date() if pd.notna(products['Launch Date'].min()) else datetime.today().date()
+max_date = products['Launch Date'].max().date() if pd.notna(products['Launch Date'].max()) else datetime.today().date()
 launch_date_range = st.sidebar.date_input('Launch Date Range', value=[min_date, max_date])
 
 # Stock Availability Filter
@@ -97,8 +100,21 @@ in_stock = st.sidebar.checkbox('Only show in-stock products', value=True)
 sort_by = st.sidebar.selectbox('Sort by', ['Price', 'Rating', 'Discount'])
 
 # Apply Filters button
-if st.sidebar.button('Apply Filters'):
-    # Apply filters to products
+apply_filters = st.sidebar.button('Apply Filters')
+
+# Save Wishlist in session state
+if 'wishlist' not in st.session_state:
+    st.session_state.wishlist = []
+
+# Function to add product to wishlist
+def add_to_wishlist(product_name):
+    if product_name not in st.session_state.wishlist:
+        st.session_state.wishlist.append(product_name)
+        st.success(f"{product_name} added to your Wishlist!")
+
+# Apply filters
+if apply_filters:
+    # Filter products based on selections
     filtered_products = products[
         (products['Category'].isin(categories)) &
         (products['Price'].between(price_range[0], price_range[1])) &
@@ -106,16 +122,14 @@ if st.sidebar.button('Apply Filters'):
         (products['Rating'] >= rating) &
         (products['Launch Date'].between(pd.to_datetime(launch_date_range[0]), pd.to_datetime(launch_date_range[1]))) &
         ((products['Stock'] > 0) if in_stock else True)
-    ]
-
-    # Sort the filtered products
-    filtered_products = filtered_products.sort_values(by=sort_by)
+    ].sort_values(by=sort_by)
 
     # Display filtered products
     if filtered_products.empty:
         st.write("No products match your criteria.")
     else:
         st.subheader("Available Products")
+
         for _, row in filtered_products.iterrows():
             st.write("---")
             col1, col2 = st.columns([2, 1])
@@ -128,15 +142,11 @@ if st.sidebar.button('Apply Filters'):
                 st.markdown(f"**Discount:** {row['Discount']}%")
                 st.markdown(f"**Rating:** {row['Rating']} stars")
                 st.markdown(f"**Features:** {row['Features']}")
-                st.markdown(f"**Stock Available:** {'Yes' if row['Stock'] > 0 else 'Out of Stock'}")
+                st.markdown(f"**Stock Available:** {'Yes' if int(row['Stock']) > 0 else 'Out of Stock'}")
 
-                # Add to wishlist button
+                # Wishlist button
                 if st.button(f"Add {row['Product Name']} to Wishlist", key=row['Product ID']):
-                    if 'wishlist' not in st.session_state:
-                        st.session_state.wishlist = []
-                    if row['Product Name'] not in st.session_state.wishlist:
-                        st.session_state.wishlist.append(row['Product Name'])
-                        st.success(f"{row['Product Name']} added to your Wishlist!")
+                    add_to_wishlist(row['Product Name'])
 
             # Right column for product image
             with col2:
@@ -145,14 +155,13 @@ if st.sidebar.button('Apply Filters'):
                 else:
                     st.text("No Image Available")
 
+        st.write("---")
+
 # Display Wishlist
 if st.sidebar.button("View Wishlist"):
-    st.sidebar.subheader("Your Wishlist")
-    if 'wishlist' in st.session_state and st.session_state.wishlist:
-        st.sidebar.write(st.session_state.wishlist)
-    else:
-        st.sidebar.write("Your wishlist is empty.")
+    st.sidebar.write("**Your Wishlist:**")
+    st.sidebar.write(st.session_state.wishlist)
 
 # Footer
 st.write("---")
-st.markdown('<div style="text-align: center; font-size: small;">© 2025 Product Catalog. Created by Manjeet Reddy Mora.</div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; font-size: small;">\u00a9 2025 Product Catalog. Created by Manjeet Reddy Mora.</div>', unsafe_allow_html=True)
