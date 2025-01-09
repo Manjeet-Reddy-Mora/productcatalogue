@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import requests  # Import requests for API calls
 from openpyxl import load_workbook
 
 # Page configuration for layout
@@ -9,46 +8,52 @@ st.set_page_config(page_title="Product Catalog", layout="wide")
 
 # Function to load data from Excel
 @st.cache_data
-def load_data(file_path):
+def load_data(uploaded_file):
     try:
-        data = pd.read_excel(file_path, engine='openpyxl')
+        data = pd.read_excel(uploaded_file, engine='openpyxl')
         if data.empty:
-            st.error("The Excel file is empty.")
+            st.error("The uploaded Excel file is empty.")
             st.stop()
         return data
     except Exception as e:
         st.error(f"An error occurred while loading the data: {e}")
         st.stop()
 
-# File path to the Excel file
-file_path = 'products.xlsx'  # Replace this with the path to your Excel file
+# File uploader
+uploaded_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
+if not uploaded_file:
+    st.stop()
 
 # Load product data
-products = load_data(file_path)
+products = load_data(uploaded_file)
 
 # Ensure necessary columns are present
 required_columns = ['Product Name', 'Category', 'Price', 'Discount', 'Stock', 'Rating', 'Features', 'Image URL', 'Launch Date', 'Product ID']
 for col in required_columns:
     if col not in products.columns:
-        st.error(f"Missing column: {col}")
+        st.error(f"Missing required column: {col}")
         st.stop()
 
-# Clean and convert 'Price' column to numeric
+# Data Cleaning
 try:
-    products['Price'] = products['Price'].replace({'\$': '', ',': ''}, regex=True).astype(float)
-except ValueError:
-    st.error("Price column contains invalid data that could not be converted to numeric.")
-    st.stop()
+    # Convert 'Price' column to numeric
+    products['Price'] = pd.to_numeric(products['Price'].replace({'\$': '', ',': ''}, regex=True), errors='coerce')
 
-# Clean and convert 'Discount' column to numeric
-try:
-    products['Discount'] = products['Discount'].replace({'\$': '', '%': '', ',': ''}, regex=True).astype(float)
-except ValueError:
-    st.error("Discount column contains invalid data that could not be converted to numeric.")
-    st.stop()
+    # Convert 'Discount' column to numeric (assumes it's in decimal format)
+    products['Discount'] = pd.to_numeric(products['Discount'], errors='coerce') * 100
 
-# Convert 'Launch Date' to datetime
-products['Launch Date'] = pd.to_datetime(products['Launch Date'], errors='coerce')
+    # Convert 'Launch Date' to datetime
+    products['Launch Date'] = pd.to_datetime(products['Launch Date'], errors='coerce')
+
+    # Fill missing or invalid dates with a fallback
+    products['Launch Date'].fillna(pd.Timestamp('2000-01-01'), inplace=True)
+
+    # Handle missing or invalid values in 'Rating' and 'Discount'
+    products['Rating'].fillna(0, inplace=True)
+    products['Discount'].fillna(0, inplace=True)
+except Exception as e:
+    st.error(f"An error occurred while processing the data: {e}")
+    st.stop()
 
 # App title and description
 st.title("🛍️ Product Catalog")
@@ -59,7 +64,7 @@ st.write("---")
 st.sidebar.header("Filter Products")
 
 # Category Filter
-categories = st.sidebar.multiselect('Category', options=sorted(products['Category'].unique()), default=sorted(products['Category'].unique()))
+categories = st.sidebar.multiselect('Category', options=sorted(products['Category'].dropna().unique()), default=sorted(products['Category'].dropna().unique()))
 
 # Price Range Filter
 price_range = st.sidebar.slider(
@@ -70,31 +75,20 @@ price_range = st.sidebar.slider(
 )
 
 # Discount Filter
-if not products['Discount'].isnull().all():  # Check if there are any valid discount values
-    min_discount = products['Discount'].min()
-    max_discount = products['Discount'].max()
-    if min_discount < max_discount:  # Ensure that the slider has a valid range
-        discount_range = st.sidebar.slider(
-            'Discount (%)',
-            min_value=int(min_discount),
-            max_value=int(max_discount),
-            value=(int(min_discount), int(max_discount))
-        )
-    else:
-        discount_range = (0, 100)  # Fallback to a default range
-        st.warning("Discount data is invalid or lacks a proper range. Defaulting to 0-100%.")
-else:
-    discount_range = (0, 100)  # Fallback to a default range if no valid discounts are available
-    st.warning("No valid discount data available. Defaulting to 0-100%.")
+discount_range = st.sidebar.slider(
+    'Discount (%)',
+    min_value=int(products['Discount'].min()),
+    max_value=int(products['Discount'].max()),
+    value=(int(products['Discount'].min()), int(products['Discount'].max()))
+)
 
 # Rating Filter
-rating = st.sidebar.selectbox('Rating', options=[1, 2, 3, 4, 5], index=4)
+rating = st.sidebar.selectbox('Minimum Rating', options=[0, 1, 2, 3, 4, 5], index=5)
 
 # Launch Date Filter
-launch_date_range = st.sidebar.date_input(
-    'Launch Date Range',
-    value=[products['Launch Date'].min().date(), products['Launch Date'].max().date()]
-)
+min_date = products['Launch Date'].min().date()
+max_date = products['Launch Date'].max().date()
+launch_date_range = st.sidebar.date_input('Launch Date Range', value=[min_date, max_date])
 
 # Stock Availability Filter
 in_stock = st.sidebar.checkbox('Only show in-stock products', value=True)
@@ -103,21 +97,8 @@ in_stock = st.sidebar.checkbox('Only show in-stock products', value=True)
 sort_by = st.sidebar.selectbox('Sort by', ['Price', 'Rating', 'Discount'])
 
 # Apply Filters button
-apply_filters = st.sidebar.button('Apply Filters')
-
-# Save Wishlist in session state
-if 'wishlist' not in st.session_state:
-    st.session_state.wishlist = []
-
-# Function to add product to wishlist
-def add_to_wishlist(product_name):
-    if product_name not in st.session_state.wishlist:
-        st.session_state.wishlist.append(product_name)
-        st.success(f"{product_name} added to your Wishlist!")
-
-# Apply filters
-if apply_filters:
-    # Filter products based on selections
+if st.sidebar.button('Apply Filters'):
+    # Apply filters to products
     filtered_products = products[
         (products['Category'].isin(categories)) &
         (products['Price'].between(price_range[0], price_range[1])) &
@@ -125,14 +106,16 @@ if apply_filters:
         (products['Rating'] >= rating) &
         (products['Launch Date'].between(pd.to_datetime(launch_date_range[0]), pd.to_datetime(launch_date_range[1]))) &
         ((products['Stock'] > 0) if in_stock else True)
-    ].sort_values(by=sort_by)
+    ]
+
+    # Sort the filtered products
+    filtered_products = filtered_products.sort_values(by=sort_by)
 
     # Display filtered products
     if filtered_products.empty:
         st.write("No products match your criteria.")
     else:
         st.subheader("Available Products")
-
         for _, row in filtered_products.iterrows():
             st.write("---")
             col1, col2 = st.columns([2, 1])
@@ -147,21 +130,28 @@ if apply_filters:
                 st.markdown(f"**Features:** {row['Features']}")
                 st.markdown(f"**Stock Available:** {'Yes' if row['Stock'] > 0 else 'Out of Stock'}")
 
-                # Wishlist button
-                if st.button(f"Add {row['Product Name']} to Wishlist"):
-                    add_to_wishlist(row['Product Name'])
+                # Add to wishlist button
+                if st.button(f"Add {row['Product Name']} to Wishlist", key=row['Product ID']):
+                    if 'wishlist' not in st.session_state:
+                        st.session_state.wishlist = []
+                    if row['Product Name'] not in st.session_state.wishlist:
+                        st.session_state.wishlist.append(row['Product Name'])
+                        st.success(f"{row['Product Name']} added to your Wishlist!")
 
             # Right column for product image
             with col2:
-                if pd.notna(row['Image URL']):
+                if pd.notna(row['Image URL']) and row['Image URL'].startswith('http'):
                     st.image(row['Image URL'], caption=row['Product Name'], use_container_width=True)
-
-        st.write("---")
+                else:
+                    st.text("No Image Available")
 
 # Display Wishlist
 if st.sidebar.button("View Wishlist"):
-    st.sidebar.write("**Your Wishlist:**")
-    st.sidebar.write(st.session_state.wishlist)
+    st.sidebar.subheader("Your Wishlist")
+    if 'wishlist' in st.session_state and st.session_state.wishlist:
+        st.sidebar.write(st.session_state.wishlist)
+    else:
+        st.sidebar.write("Your wishlist is empty.")
 
 # Footer
 st.write("---")
