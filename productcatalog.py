@@ -5,24 +5,18 @@ from datetime import datetime
 # Page configuration for layout
 st.set_page_config(page_title="Product Catalog", layout="wide")
 
-# Load data from Excel
-@st.cache_data
-def load_data(file_path):
-    try:
-        data = pd.read_excel(file_path, engine='openpyxl')
-        if data.empty:
-            st.error("The Excel file is empty.")
-            st.stop()
-        return data
-    except Exception as e:
-        st.error(f"An error occurred while loading the data: {e}")
-        st.stop()
-
-# File path to the product catalog (update with your file's path or URL)
+# File path to the product catalog
 file_path = 'products.xlsx'
 
-# Load product data
-products = load_data(file_path)
+# Load product data (simplified)
+try:
+    products = pd.read_excel(file_path, engine='openpyxl')
+    if products.empty:
+        st.error("The Excel file is empty.")
+        st.stop()
+except Exception as e:
+    st.error(f"An error occurred while loading the data: {e}")
+    st.stop()
 
 # Ensure necessary columns are present
 required_columns = ['Product Name', 'Category', 'Price', 'Discount', 'Stock', 'Rating', 'Features', 'Image URL', 'Launch Date', 'Product ID']
@@ -133,5 +127,4 @@ if st.sidebar.button("View Wishlist"):
 
 # Footer
 st.write("---")
-st.markdown('<div style="text-align: center; font-size: small;">© 2024 Product Catalog. All rights reserved.</div>', unsafe_allow_html=True)
-
+st.markdown('<div style="text-align: center; font-size: small;">© 2024 Product Catalog. Created by Manjeet Reddy Mora.</div>', unsafe_allow_html=True)
