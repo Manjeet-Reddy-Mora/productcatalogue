@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from openpyxl import load_workbook
+import urllib.parse
 
 # Page configuration for layout
 st.set_page_config(page_title="Product Catalog", layout="wide")
@@ -18,6 +19,14 @@ def load_data(uploaded_file):
     except Exception as e:
         st.error(f"An error occurred while loading the data: {e}")
         st.stop()
+
+# Function to create share URLs
+def create_share_urls(product_name, product_price, product_url):
+    whatsapp_url = f'https://wa.me/?text={urllib.parse.quote(f"Check out this product: {product_name} for {product_price}. {product_url}")}'
+    facebook_url = f'https://www.facebook.com/sharer/sharer.php?u={urllib.parse.quote(product_url)}'
+    instagram_url = f'https://www.instagram.com/explore/tags/{urllib.parse.quote(product_name)}'  # Instagram tag URL
+    
+    return whatsapp_url, facebook_url, instagram_url
 
 # File uploader
 uploaded_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
@@ -140,6 +149,15 @@ if st.sidebar.button('Apply Filters'):
                     if row['Product Name'] not in st.session_state.wishlist:
                         st.session_state.wishlist.append(row['Product Name'])
                         st.success(f"{row['Product Name']} added to your Wishlist!")
+
+                # Share URLs
+                product_url = f"https://example.com/product/{row['Product ID']}"  # Replace with actual product page URL
+                whatsapp_url, facebook_url, instagram_url = create_share_urls(row['Product Name'], row['Price'], product_url)
+
+                # Share buttons
+                col1.markdown(f"[Share on WhatsApp]( {whatsapp_url} )", unsafe_allow_html=True)
+                col1.markdown(f"[Share on Facebook]( {facebook_url} )", unsafe_allow_html=True)
+                col1.markdown(f"[Share on Instagram]( {instagram_url} )", unsafe_allow_html=True)
 
             # Right column for product image
             with col2:
