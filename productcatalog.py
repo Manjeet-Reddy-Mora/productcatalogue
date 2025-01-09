@@ -40,6 +40,13 @@ except ValueError:
     st.error("Price column contains invalid data that could not be converted to numeric.")
     st.stop()
 
+# Clean and convert 'Discount' column to numeric
+try:
+    products['Discount'] = products['Discount'].replace({'\$': '', '%': '', ',': ''}, regex=True).astype(float)
+except ValueError:
+    st.error("Discount column contains invalid data that could not be converted to numeric.")
+    st.stop()
+
 # Convert 'Launch Date' to datetime
 products['Launch Date'] = pd.to_datetime(products['Launch Date'], errors='coerce')
 
@@ -63,12 +70,16 @@ price_range = st.sidebar.slider(
 )
 
 # Discount Filter
-discount_range = st.sidebar.slider(
-    'Discount (%)',
-    min_value=int(products['Discount'].min()),
-    max_value=int(products['Discount'].max()),
-    value=(int(products['Discount'].min()), int(products['Discount'].max()))
-)
+# Ensure discount range is valid before using it
+if not products['Discount'].isnull().all():  # Check if there is any valid discount data
+    discount_range = st.sidebar.slider(
+        'Discount (%)',
+        min_value=int(products['Discount'].min()),
+        max_value=int(products['Discount'].max()),
+        value=(int(products['Discount'].min()), int(products['Discount'].max()))
+    )
+else:
+    st.warning("No valid data for Discount found.")
 
 # Rating Filter
 rating = st.sidebar.selectbox('Rating', options=[1, 2, 3, 4, 5], index=4)
