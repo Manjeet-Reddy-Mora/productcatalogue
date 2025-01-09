@@ -51,6 +51,9 @@ try:
     # Handle missing or invalid values in 'Rating' and 'Discount'
     products['Rating'].fillna(0, inplace=True)
     products['Discount'].fillna(0, inplace=True)
+
+    # Convert 'Stock' to numeric and fill invalid values with 0
+    products['Stock'] = pd.to_numeric(products['Stock'], errors='coerce').fillna(0).astype(int)
 except Exception as e:
     st.error(f"An error occurred while processing the data: {e}")
     st.stop()
