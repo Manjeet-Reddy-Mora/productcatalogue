@@ -7,11 +7,11 @@ from openpyxl import load_workbook
 # Page configuration for layout
 st.set_page_config(page_title="Product Catalog", layout="wide")
 
-# Function to load data from Excel (Updated)
+# Function to load data from Excel
 @st.cache_data
-def load_data(url):
+def load_data(file_path):
     try:
-        data = pd.read_excel(url, engine='openpyxl')
+        data = pd.read_excel(file_path, engine='openpyxl')
         if data.empty:
             st.error("The Excel file is empty.")
             st.stop()
@@ -20,10 +20,10 @@ def load_data(url):
         st.error(f"An error occurred while loading the data: {e}")
         st.stop()
 
-# Update the URL to the raw link
+# File path to the Excel file
 file_path = 'products.xlsx'  # Replace this with the path to your Excel file
 
-# Load product data (Updated)
+# Load product data
 products = load_data(file_path)
 
 # Ensure necessary columns are present
@@ -33,8 +33,15 @@ for col in required_columns:
         st.error(f"Missing column: {col}")
         st.stop()
 
+# Clean and convert 'Price' column to numeric
+try:
+    products['Price'] = products['Price'].replace({'\$': '', ',': ''}, regex=True).astype(float)
+except ValueError:
+    st.error("Price column contains invalid data that could not be converted to numeric.")
+    st.stop()
+
 # Convert 'Launch Date' to datetime
-products['Launch Date'] = pd.to_datetime(products['Launch Date'])
+products['Launch Date'] = pd.to_datetime(products['Launch Date'], errors='coerce')
 
 # App title and description
 st.title("🛍️ Product Catalog")
@@ -48,23 +55,29 @@ st.sidebar.header("Filter Products")
 categories = st.sidebar.multiselect('Category', options=sorted(products['Category'].unique()), default=sorted(products['Category'].unique()))
 
 # Price Range Filter
-price_range = st.sidebar.slider('Price Range (₹)', 
-                                 min_value=int(products['Price'].min()), 
-                                 max_value=int(products['Price'].max()), 
-                                 value=(int(products['Price'].min()), int(products['Price'].max())))
+price_range = st.sidebar.slider(
+    'Price Range (₹)',
+    min_value=int(products['Price'].min()),
+    max_value=int(products['Price'].max()),
+    value=(int(products['Price'].min()), int(products['Price'].max()))
+)
 
 # Discount Filter
-discount_range = st.sidebar.slider('Discount (%)', 
-                                    min_value=int(products['Discount'].min()), 
-                                    max_value=int(products['Discount'].max()), 
-                                    value=(int(products['Discount'].min()), int(products['Discount'].max())))
+discount_range = st.sidebar.slider(
+    'Discount (%)',
+    min_value=int(products['Discount'].min()),
+    max_value=int(products['Discount'].max()),
+    value=(int(products['Discount'].min()), int(products['Discount'].max()))
+)
 
 # Rating Filter
 rating = st.sidebar.selectbox('Rating', options=[1, 2, 3, 4, 5], index=4)
 
 # Launch Date Filter
-launch_date_range = st.sidebar.date_input('Launch Date Range', 
-                                          value=[products['Launch Date'].min().date(), products['Launch Date'].max().date()])
+launch_date_range = st.sidebar.date_input(
+    'Launch Date Range',
+    value=[products['Launch Date'].min().date(), products['Launch Date'].max().date()]
+)
 
 # Stock Availability Filter
 in_stock = st.sidebar.checkbox('Only show in-stock products', value=True)
@@ -127,15 +140,7 @@ if apply_filters:
                     st.image(row['Image URL'], caption=row['Product Name'], use_container_width=True)
 
         st.write("---")
-products['Price'] = products['Price'].replace({'\$': '', ',': ''}, regex=True).astype(float)
 
-# Price Range Filter
-price_range = st.sidebar.slider(
-    'Price Range (₹)',
-    min_value=float(products['Price'].min()),
-    max_value=float(products['Price'].max()),
-    value=(float(products['Price'].min()), float(products['Price'].max()))
-)
 # Display Wishlist
 if st.sidebar.button("View Wishlist"):
     st.sidebar.write("**Your Wishlist:**")
@@ -143,4 +148,4 @@ if st.sidebar.button("View Wishlist"):
 
 # Footer
 st.write("---")
-st.markdown('<div style="text-align: center; font-size: small;">© 2024 Product Catalog. Created by Manjeet Reddy Mora.</div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; font-size: small;">© 2025 Product Catalog. Created by Manjeet Reddy Mora.</div>', unsafe_allow_html=True)
