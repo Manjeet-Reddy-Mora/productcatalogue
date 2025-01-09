@@ -37,7 +37,7 @@ for col in required_columns:
 # Data Cleaning
 try:
     # Convert 'Price' column to numeric
-    products['Price'] = pd.to_numeric(products['Price'].replace({'\$': '', ',': ''}, regex=True), errors='coerce')
+    products['Price'] = pd.to_numeric(products['Price'].replace({'\\$': '', ',': ''}, regex=True), errors='coerce')
 
     # Convert 'Discount' column to numeric (assumes it's in decimal format)
     products['Discount'] = pd.to_numeric(products['Discount'], errors='coerce') * 100
@@ -52,14 +52,14 @@ try:
     products['Rating'].fillna(0, inplace=True)
     products['Discount'].fillna(0, inplace=True)
 
-    # Convert 'Stock' to numeric and fill invalid values with 0
-    products['Stock'] = pd.to_numeric(products['Stock'], errors='coerce').fillna(0).astype(int)
+    # Convert 'Stock' column to indicate stock availability
+    products['Stock'] = products['Stock'].apply(lambda x: 1 if str(x).lower() == 'in stock' else 0)
 except Exception as e:
     st.error(f"An error occurred while processing the data: {e}")
     st.stop()
 
 # App title and description
-st.title("🛍️ Product Catalog")
+st.title("\U0001F6D2 Product Catalog")
 st.subheader("Find the best products tailored to your needs.")
 st.write("---")
 
@@ -158,4 +158,4 @@ if st.sidebar.button("View Wishlist"):
 
 # Footer
 st.write("---")
-st.markdown('<div style="text-align: center; font-size: small;">© 2025 Product Catalog. Created by Manjeet Reddy Mora.</div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; font-size: small;">\u00a9 2025 Product Catalog. Created by Manjeet Reddy Mora.</div>', unsafe_allow_html=True)
