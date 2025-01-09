@@ -70,19 +70,22 @@ price_range = st.sidebar.slider(
 )
 
 # Discount Filter
-# Ensure discount range is valid before using it
-if not products['Discount'].isnull().all():  # Check if there is any valid discount data
+if not products['Discount'].isnull().all():  # Check if there are any valid discount values
     min_discount = products['Discount'].min()
     max_discount = products['Discount'].max()
-    discount_range = st.sidebar.slider(
-        'Discount (%)',
-        min_value=int(min_discount),
-        max_value=int(max_discount),
-        value=(int(min_discount), int(max_discount))
-    )
+    if min_discount < max_discount:  # Ensure that the slider has a valid range
+        discount_range = st.sidebar.slider(
+            'Discount (%)',
+            min_value=int(min_discount),
+            max_value=int(max_discount),
+            value=(int(min_discount), int(max_discount))
+        )
+    else:
+        discount_range = (0, 100)  # Fallback to a default range
+        st.warning("Discount data is invalid or lacks a proper range. Defaulting to 0-100%.")
 else:
-    st.warning("No valid data for Discount found.")
-    discount_range = (0, 0)  # Default to a valid range (this could be customized)
+    discount_range = (0, 100)  # Fallback to a default range if no valid discounts are available
+    st.warning("No valid discount data available. Defaulting to 0-100%.")
 
 # Rating Filter
 rating = st.sidebar.selectbox('Rating', options=[1, 2, 3, 4, 5], index=4)
