@@ -127,7 +127,15 @@ if apply_filters:
                     st.image(row['Image URL'], caption=row['Product Name'], use_container_width=True)
 
         st.write("---")
+products['Price'] = products['Price'].replace({'\$': '', ',': ''}, regex=True).astype(float)
 
+# Price Range Filter
+price_range = st.sidebar.slider(
+    'Price Range (₹)',
+    min_value=float(products['Price'].min()),
+    max_value=float(products['Price'].max()),
+    value=(float(products['Price'].min()), float(products['Price'].max()))
+)
 # Display Wishlist
 if st.sidebar.button("View Wishlist"):
     st.sidebar.write("**Your Wishlist:**")
